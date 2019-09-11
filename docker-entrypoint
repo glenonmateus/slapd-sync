@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+: ${LDAP_CONFDIR:='/etc/ldap/slapd.d'}
+: ${LDAP_DATA:='/var/lib/ldap'}
+: ${LDAP_DEBUG:='1'}
+: ${LDAP_BASEDN:='exemplo'}
+: ${LDAP_SYNCBINDDN:='sync'}
+: ${LDAP_ROOTPW:='password'}
+: ${LDAP_SYNCPW:='password'}
+: ${LDAP_SYNCBRID:='1'}
+: ${LDAP_MASTERURL:='ldap://10.0.0.1:389'}
+: ${LDAP_URLS:='ldapi:// ldap:/// ldaps:///'}
+
+chown -R openldap: ${LDAP_CONFDIR} ${LDAP_DATA}
+SYNCPW=$(slappasswd -s "${LDAP_SYNCPW}")
+ROOTPW=$(slappasswd -s "${LDAP_ROOTPW}")
+
+echo "==> Setting slapd mirror"
+slapd -u openldap -g openldap -h "ldapi:///" -F "${LDAP_CONFDIR}"
+
+ldapmodify -QY EXTERNAL -H ldapi:/// <<EOF
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcSuffix
+olcSuffix: o=${LDAP_BASEDN}
+-
+replace: olcRootDN
+olcRootDN: cn=admin,o=${LDAP_BASEDN}
+-
+replace: olcRootPW
+olcRootPW: ${ROOTPW}
+-
+replace: olcDbDirectory
+olcDbDirectory: ${LDAP_DATA}
+EOF
+
+ldapmodify -QY EXTERNAL -H ldapi:/// <<EOF
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+add: olcSyncRepl
+olcSyncRepl: rid=${LDAP_SYNCBRID} provider=${LDAP_MASTERURL} bindmethod=simple binddn=cn=${LDAP_SYNCBINDDN},o=${LDAP_BASEDN} credentials=${LDAP_SYNCPW} searchbase=o=${LDAP_BASEDN} schemachecking=on type=refreshAndPersist retry="30 5 300 3"
+EOF
+
+kill $(cat /run/slapd/slapd.pid)
+echo "Done"
+
+echo "==> Starting slapd ..."
+slapd -u openldap -g openldap -h "${LDAP_URLS}" -F ${LDAP_CONFDIR} -d ${LDAP_DEBUG}

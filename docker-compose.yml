@@ -1,0 +1,40 @@
+version: "3.7"
+
+services:
+
+  slapd:
+    image: glenonmateus/slapd-sync
+    deploy:
+      restart_policy:
+        condition: none
+      replicas: 1
+    ports:
+      - 389:389
+      - 636:636
+    environment:
+      - LDAP_BASEDN=FUMEC
+      - LDAP_SYNCBINDDN=sync
+      - LDAP_SYNCPW=password
+      - LDAP_MASTERURL=ldap://10.0.3.15:389
+    volumes:
+      - slapd_conf:/etc/ldap/
+      - slapd_lib:/var/lib/ldap/
+    networks:
+      - slapd
+
+volumes:
+  slapd_conf:
+    #driver: local
+    #driver_opts:
+    #  type: "nfs4"
+    #  o: "addr=10.0.3.12,rw"
+    #  device: ":/nfs/docker/slapd_conf"
+  slapd_lib:
+    #driver: local
+    #driver_opts:
+    #  type: "nfs4"
+    #  o: "addr=10.0.3.12,rw"
+    #  device: ":/nfs/docker/slapd_lib"
+
+networks:
+  slapd:
